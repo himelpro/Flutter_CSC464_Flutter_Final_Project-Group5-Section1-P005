@@ -1,203 +1,324 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/course_provider.dart';
-import '../../widgets/add_course_sheet.dart';
-import '../../widgets/edit_course_sheet.dart';
+import '../models/course_model.dart';
+import '../providers/course_provider.dart';
 
-class CourseScreen extends StatelessWidget {
-  const CourseScreen({super.key});
+class EditCourseSheet extends StatefulWidget {
+  final Course course;
+  const EditCourseSheet({super.key, required this.course});
+
+  @override
+  State<EditCourseSheet> createState() => _EditCourseSheetState();
+}
+
+class _EditCourseSheetState extends State<EditCourseSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _roomController;
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
+  final List<String> _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  final List<String> _selectedDays = [];
+
+  TimeOfDay? _parseTime(String timeString) {
+    if (timeString.isEmpty || timeString == 'Tap to select') return null;
+    try {
+      final parts = timeString.split(' ');
+      final timeParts = parts[0].split(':');
+      int hour = int.parse(timeParts[0]);
+      final minute = int.parse(timeParts[1]);
+      if (parts[1].toUpperCase() == 'PM' && hour != 12) {
+        hour += 12;
+      } else if (parts[1].toUpperCase() == 'AM' && hour == 12) {
+        hour = 0;
+      }
+      return TimeOfDay(hour: hour, minute: minute);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.course.name);
+    _roomController = TextEditingController(text: widget.course.room);
+    _selectedDays.addAll(widget.course.days);
+    _startTime = _parseTime(widget.course.startTime);
+    _endTime = _parseTime(widget.course.endTime);
+  }
+
+  String _formatTime(TimeOfDay? time) {
+    if (time == null) return 'Tap to select';
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+    final minute = time.minute.toString().padLeft(2, '0');
+    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+    return '${hour.toString().padLeft(2, '0')}:$minute $period';
+  }
+
+  Future<void> _pickTime(bool isStart) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: isStart ? (_startTime ?? const TimeOfDay(hour: 9, minute: 0)) : (_endTime ?? const TimeOfDay(hour: 9, minute: 0)),
+    );
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          _startTime = picked;
+        } else {
+          _endTime = picked;
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF8F9FA),
-        elevation: 0,
-        toolbarHeight: 120,
-        title: const Padding(
-          padding: EdgeInsets.only(top: 20.0),
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+        left: 24,
+        right: 24,
+        top: 32,
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Active\nCourses',
+              const Text(
+                'Edit Course',
                 style: TextStyle(
-                  fontSize: 36,
+                  fontSize: 32,
                   fontWeight: FontWeight.w900,
                   color: Color(0xFF0F2851),
-                  height: 1.1,
                 ),
               ),
-              SizedBox(height: 8),
-              Text(
-                'Manage your currently running academic modules.',
-                style: TextStyle(fontSize: 14, color: Color(0xFF4A5568)),
+              const SizedBox(height: 24),
+              const Text(
+                'COURSE NAME',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                  color: Color(0xFF0F2851),
+                ),
               ),
-            ],
-          ),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-        child: Consumer<CourseProvider>(
-          builder: (context, provider, child) {
-            return ListView.builder(
-              itemCount: provider.courses.length,
-              itemBuilder: (context, index) {
-                final course = provider.courses[index];
-                return Card(
-                  color: const Color(0xFFF0F4FA),
-                  elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _nameController,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Course name cannot be empty'
+                    : null,
+                decoration: const InputDecoration(
+                  filled: true,
+                  fillColor: Color(0xFFF3F4F6),
+                  border: OutlineInputBorder(borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'DAYS OF THE WEEK',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                  color: Color(0xFF0F2851),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _days.map((day) {
+                  final isSelected = _selectedDays.contains(day);
+                  return FilterChip(
+                    label: Text(day),
+                    selected: isSelected,
+                    selectedColor: const Color(0xFFD9E2F2),
+                    backgroundColor: const Color(0xFFF3F4F6),
+                    checkmarkColor: const Color(0xFF0F2851),
+                    labelStyle: TextStyle(
+                      color: isSelected
+                          ? const Color(0xFF0F2851)
+                          : const Color(0xFF4A5A7B),
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                    onSelected: (bool selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedDays.add(day);
+                        } else {
+                          _selectedDays.remove(day);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          course.name,
-                          style: const TextStyle(
-                            fontSize: 22,
+                        const Text(
+                          'START TIME',
+                          style: TextStyle(
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
+                            letterSpacing: 1.5,
                             color: Color(0xFF0F2851),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.access_time,
-                              size: 16,
-                              color: Color(0xFF4A5A7B),
+                        const SizedBox(height: 8),
+                        InkWell(
+                          onTap: () => _pickTime(true),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${course.days.join(', ')} • ${course.startTime} - ${course.endTime}',
-                              style: const TextStyle(
-                                color: Color(0xFF4A5A7B),
-                                fontSize: 14,
-                              ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3F4F6),
+                              borderRadius: BorderRadius.circular(4),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.edit,
-                                color: Color(0xFF4A5A7B),
-                              ),
-                              onPressed: () {
-                                showModalBottomSheet(
-                                  context: context,
-                                  isScrollControlled: true,
-                                  backgroundColor: Colors.white,
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(0),
-                                    ),
-                                  ),
-                                  builder: (context) =>
-                                      EditCourseSheet(course: course),
-                                );
-                              },
+                            child: Text(
+                              _formatTime(_startTime),
+                              style: const TextStyle(color: Color(0xFF4A5A7B)),
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete,
-                                color: Color(0xFF4A5A7B),
-                              ),
-                              onPressed: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (BuildContext dialogContext) {
-                                    return AlertDialog(
-                                      backgroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      title: const Text(
-                                        'Delete Course?',
-                                        style: TextStyle(
-                                          color: Color(0xFF0F2851),
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      content: const Text(
-                                        'Are you sure you want to remove this course?',
-                                        style: TextStyle(
-                                          color: Color(0xFF4A5568),
-                                        ),
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(dialogContext),
-                                          child: const Text(
-                                            'Cancel',
-                                            style: TextStyle(
-                                              color: Color(0xFF4A5A7B),
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed: () {
-                                            provider.deleteCourse(course.id);
-                                            Navigator.pop(dialogContext);
-                                          },
-                                          child: const Text(
-                                            'Delete',
-                                            style: TextStyle(
-                                              color: Colors.redAccent,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
                   ),
-                );
-              },
-            );
-          },
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(left: 16.0, bottom: 16.0),
-        child: FloatingActionButton.extended(
-          heroTag: 'courseFab',
-          backgroundColor: const Color(0xFF4A5A7B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-          onPressed: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.white,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(0)),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'END TIME',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.5,
+                            color: Color(0xFF0F2851),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        InkWell(
+                          onTap: () => _pickTime(false),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3F4F6),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _formatTime(_endTime),
+                              style: const TextStyle(color: Color(0xFF4A5A7B)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              builder: (context) => const AddCourseSheet(),
-            );
-          },
-          icon: const Icon(Icons.add, color: Colors.white),
-          label: const Text(
-            'Add Course',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              const SizedBox(height: 24),
+              const Text(
+                'ROOM NUMBER',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                  color: Color(0xFF0F2851),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _roomController,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Room assignment is required'
+                    : null,
+                decoration: const InputDecoration(
+                  filled: true,
+                  fillColor: Color(0xFFF3F4F6),
+                  border: OutlineInputBorder(borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4A5A7B),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  onPressed: () {
+                    if (_formKey.currentState!.validate() &&
+                        _startTime != null &&
+                        _endTime != null &&
+                        _selectedDays.isNotEmpty) {
+                      final updatedCourse = Course(
+                        id: widget.course.id,
+                        name: _nameController.text,
+                        days: List.from(_selectedDays),
+                        startTime: _formatTime(_startTime),
+                        endTime: _formatTime(_endTime),
+                        room: _roomController.text,
+                      );
+                      context.read<CourseProvider>().updateCourse(updatedCourse);
+                      Navigator.pop(context);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please ensure days and times are selected.',
+                          ),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text(
+                    'Update Course',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Color(0xFF0F2851),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
           ),
         ),
       ),
